@@ -1,14 +1,17 @@
 package com.oracle.sdkdemo;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.nimbusds.jose.shaded.json.JSONObject;
+import com.google.gson.Gson;
 import com.oracle.bmc.ConfigFileReader;
 import com.oracle.bmc.auth.AuthenticationDetailsProvider;
 import com.oracle.bmc.auth.ConfigFileAuthenticationDetailsProvider;
@@ -32,72 +35,103 @@ public class SdkController {
 	@GetMapping("/test")
 	public String getTest() {
 		try {
-			return test().toJSONString();
+			return test();
 		} catch (IOException e) {
 			e.printStackTrace();
 			logger.info("### error: ", e.getMessage());
+			
+			Gson result = new Gson();
+			Map<String, String> errorResult = new HashMap<String, String>();
+			errorResult.put("error", e.getMessage());
+			result.toJson(errorResult);
+			
+			return result.toString();
 		}
 
-		return null;
 	}
 
-	public static JSONObject test() throws IOException {
-		logger.info("### test");
-
+	public static AuthenticationDetailsProvider getProvider() throws IOException {
 		String configurationFilePath = "/Users/joungminko/.oci/config";
 		String profile = "DEFAULT";
 
 		final ConfigFileReader.ConfigFile configFile = ConfigFileReader.parse(configurationFilePath, profile);
-		final AuthenticationDetailsProvider provider = new ConfigFileAuthenticationDetailsProvider(configFile);
-
-		String tenantId = provider.getTenantId();
-
-		logger.info("### tenantId: {}", tenantId);
-
-		JSONObject outputJsonObj = new JSONObject();
-
-		IdentityClient client = IdentityClient.builder().build(provider);
-
-		ListRegionSubscriptionsRequest listRegionSubscriptionsRequest = ListRegionSubscriptionsRequest.builder()
-				.tenancyId(tenantId).build();
-
-		ListRegionSubscriptionsResponse response = client.listRegionSubscriptions(listRegionSubscriptionsRequest);
-
-		List<RegionSubscription> regionItems = response.getItems();
-		int i = 0;
-		for (RegionSubscription subscription : regionItems) {
-			JSONObject curJsonObj = new JSONObject();
-			String curRegion = subscription.getRegionName();
-			curJsonObj.put(curRegion, curRegion);
-
-			logger.info("### region: {}", curRegion);
-			ListCompartmentsResponse listCompartments = client
-					.listCompartments(ListCompartmentsRequest.builder().compartmentId(tenantId).build());
-			List<Compartment> compartmentItems = listCompartments.getItems();
-
-			for (Compartment compartment : compartmentItems) {
-				String curCompartmentId = compartment.getCompartmentId();
-				curJsonObj.put(curCompartmentId, compartment.getDescription());
-
-				logger.info("### compartment: {}, {}", compartment.getDescription(), compartment.getCompartmentId());
-
-				VirtualNetworkClient vNclient = VirtualNetworkClient.builder().region(curRegion).build(provider);
-
-				ListVcnsRequest listVcnsRequest = ListVcnsRequest.builder().compartmentId(curCompartmentId)
-						.sortBy(ListVcnsRequest.SortBy.Displayname).sortOrder(ListVcnsRequest.SortOrder.Desc).build();
-
-				/* Send request to the Client */
-				ListVcnsResponse vResponse = vNclient.listVcns(listVcnsRequest);
-				List<Vcn> vcnItems = vResponse.getItems();
-				for (Vcn vcn : vcnItems) {
-					curJsonObj.put(vcn.getId(), vcn.getDisplayName());
-					logger.info("### vcn: {}, {}", vcn.getDisplayName(), vcn.getId());
-				}
-
-			}
-			outputJsonObj.put(i++ + "", curJsonObj);
-		}
-
-		return outputJsonObj;
+		return new ConfigFileAuthenticationDetailsProvider(configFile);
 	}
+	
+	public static List<RegionSubscription> getRegionSubscription(AuthenticationDetailsProvider p) throws IOException {
+		
+		String tenantId = p.getTenantId();
+		IdentityClient client = IdentityClient.builder().build(p);
+		
+		ListRegionSubscriptionsRequest listRegionSubscriptionsRequest = ListRegionSubscriptionsRequest.builder().tenancyId(tenantId).build();
+		ListRegionSubscriptionsResponse listRegionSubscriptionsResponse = client.listRegionSubscriptions(listRegionSubscriptionsRequest);
+		
+		return listRegionSubscriptionsResponse.getItems();
+	}
+	
+	public static List<Compartment> getCompartmentResult(AuthenticationDetailsProvider p, String region) throws IOException {
+		
+		String tenantId = p.getTenantId();
+		IdentityClient client = IdentityClient.builder().region(region).build(p);
+		
+		ListCompartmentsResponse listCompartmentsResponse = client.listCompartments(ListCompartmentsRequest.builder().compartmentId(tenantId).build());
+
+		return listCompartmentsResponse.getItems();
+	}
+	
+	public static List<Vcn> getVcn(AuthenticationDetailsProvider p, String region, String compartmentId) throws IOException {
+		
+		String tenantId = p.getTenantId();
+		logger.info("### tenantId: {}", tenantId);
+		VirtualNetworkClient virtualNetworkClient = VirtualNetworkClient.builder().region(region).build(p);
+		ListVcnsRequest listVcnsRequest = ListVcnsRequest.builder().compartmentId(compartmentId).build();
+		ListVcnsResponse listVcnsResponse = virtualNetworkClient.listVcns(listVcnsRequest);
+
+		return listVcnsResponse.getItems();
+	}
+	
+	public static String test() throws IOException {
+		logger.info("### test");
+
+		AuthenticationDetailsProvider p = getProvider();
+		List<RegionSubscription> regionSubscriptions = getRegionSubscription(p);
+		
+		List<Map<String, Object>> resultList = new ArrayList<Map<String, Object>>();
+
+		for (RegionSubscription rs : regionSubscriptions) {
+			
+			Map<String, Object> curRegionMap = new HashMap<String, Object>();
+			String curRegion = rs.getRegionName();
+			curRegionMap.put("region", curRegion);
+			logger.info("### region: {}", curRegion);
+			
+			List<Compartment> compartmentResults = getCompartmentResult(p, curRegion);
+			
+			for (Compartment compartment : compartmentResults) {
+				Map<String, Object> curCompartmentMap = new HashMap<String, Object>();
+				
+				String curCompartmentId = compartment.getId();
+				String curCompartmentName = compartment.getDescription();
+				
+				logger.info("### getCompartmentId: {}", curCompartmentId);
+				logger.info("### getDescription: {}", curCompartmentName);
+				curCompartmentMap.put("compartmentId", curCompartmentId);
+				curCompartmentMap.put("compartmentName", curCompartmentName);
+
+				List<Vcn> vcns = getVcn(p, curRegion, curCompartmentId);
+				Map<String, String> curVcnMap = new HashMap<String, String>();
+				for (Vcn vcn : vcns) {
+					logger.info("### vcn: {}, {}", vcn.getDisplayName(), vcn.getId());
+					curVcnMap.put("vcnName", vcn.getDisplayName());
+					curVcnMap.put("vcnId", vcn.getId());
+				}
+				curCompartmentMap.put("vcns", curVcnMap);
+				curRegionMap.put(curCompartmentName, curCompartmentMap);
+			}
+			resultList.add(curRegionMap);
+		}
+		Gson gson = new Gson();
+		return gson.toJson(resultList);
+	}
+	
 }
