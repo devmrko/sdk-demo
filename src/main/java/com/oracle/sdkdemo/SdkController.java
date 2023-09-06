@@ -81,8 +81,6 @@ public class SdkController {
 	
 	public static List<Vcn> getVcn(AuthenticationDetailsProvider p, String region, String compartmentId) throws IOException {
 		
-		String tenantId = p.getTenantId();
-		logger.info("### tenantId: {}", tenantId);
 		VirtualNetworkClient virtualNetworkClient = VirtualNetworkClient.builder().region(region).build(p);
 		ListVcnsRequest listVcnsRequest = ListVcnsRequest.builder().compartmentId(compartmentId).build();
 		ListVcnsResponse listVcnsResponse = virtualNetworkClient.listVcns(listVcnsRequest);
