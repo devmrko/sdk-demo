@@ -118,13 +118,15 @@ public class SdkController {
 				curCompartmentMap.put("compartmentId", curCompartmentId);
 
 				List<Vcn> vcns = getVcn(p, curRegion, curCompartmentId);
-				Map<String, String> curVcnMap = new HashMap<String, String>();
+				List<Map<String, String>> curVcnList = new ArrayList<Map<String, String>>();
 				for (Vcn vcn : vcns) {
+					Map<String, String> curVcnMap = new HashMap<String, String>();
 					logger.info("### vcn: {}, {}", vcn.getDisplayName(), vcn.getId());
 					curVcnMap.put("vcnName", vcn.getDisplayName());
 					curVcnMap.put("vcnId", vcn.getId());
+					curVcnList.add(curVcnMap);
 				}
-				curCompartmentMap.put("vcns", curVcnMap);
+				curCompartmentMap.put("vcns", curVcnList);
 				curRegionMap.put(curCompartmentName, curCompartmentMap);
 			}
 			resultList.add(curRegionMap);
