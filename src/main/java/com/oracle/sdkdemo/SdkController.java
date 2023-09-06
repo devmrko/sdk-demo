@@ -116,7 +116,6 @@ public class SdkController {
 				logger.info("### getCompartmentId: {}", curCompartmentId);
 				logger.info("### getDescription: {}", curCompartmentName);
 				curCompartmentMap.put("compartmentId", curCompartmentId);
-				curCompartmentMap.put("compartmentName", curCompartmentName);
 
 				List<Vcn> vcns = getVcn(p, curRegion, curCompartmentId);
 				Map<String, String> curVcnMap = new HashMap<String, String>();
